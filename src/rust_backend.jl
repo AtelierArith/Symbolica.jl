@@ -5,7 +5,6 @@ using Libdl
 const _LIB = Ref{Ptr{Cvoid}}(C_NULL)
 
 function __init__()
-        ENV["SYMBOLICA_HIDE_BANNER"] = "0"
     ext = if Sys.isapple()
         "dylib"
     elseif Sys.islinux()
