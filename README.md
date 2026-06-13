@@ -1,0 +1,68 @@
+# Symbolica.jl
+
+[![Julia](https://img.shields.io/badge/julia-%3E%3D1.10-blue)](https://julialang.org)
+
+Symbolica.jl is a Julia wrapper for the [Symbolica](https://symbolica.io) computer algebra system, providing high-performance symbolic computation through Rust's Symbolica crate. It is designed to interoperate with [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl).
+
+## Features
+
+- **expand** — Expand products and powers
+- **factor** — Factor polynomials over the rationals
+- **simplify** — Cancel common factors in rational expressions
+- **derivative** — Symbolic differentiation
+- **substitute** — Variable substitution
+
+## Installation
+
+```julia
+using Pkg
+Pkg.add("Symbolica")
+```
+
+Symbolica.jl requires [Rust](https://rustup.rs) ≥ 1.89. The native library is compiled automatically during `Pkg.build()`.
+
+## Quick Start
+
+```julia
+using Symbolics
+using Symbolica
+
+@variables x y
+
+# Expand
+Symbolica.expand((x + y)^3)    # x^3 + 3x^2*y + 3x*y^2 + y^3
+
+# Factor
+Symbolica.factor(x^2 + 2x + 1)  # (1 + x)^2
+
+# Simplify
+Symbolica.simplify((x^2 - 1) / (x - 1))  # 1 + x
+
+# Derivative
+Symbolica.derivative(x^3 + sin(x), x)     # cos(x) + 3x^2
+
+# Substitute
+Symbolica.substitute(x + y, Dict(x => y + 1))  # 1 + 2y
+```
+
+## Architecture
+
+```
+Symbolics.jl Expr
+    ↓ Encoder (Julia: Expr → string)
+RustCall (ccall)
+    ↓
+rust/ facade crate (extern "C" → deps/symbolica)
+    ↓
+Symbolica Atom (parse → operate → print)
+    ↓
+rust/ facade crate (string → extern "C")
+    ↓
+RustCall
+    ↓ Decoder (Julia: string → Expr)
+Symbolics.jl Expr
+```
+
+## License
+
+Symbolica.jl is MIT licensed. Note that the underlying [Symbolica](https://symbolica.io) crate has its own license — see https://symbolica.io for details.
