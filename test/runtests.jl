@@ -1,0 +1,26 @@
+using Test
+using Symbolics
+using Symbolica
+
+@variables x y
+
+@testset "expand" begin
+    @test isequal(Symbolica.expand((x+y)^2), x^2 + 2x*y + y^2)
+    @test isequal(Symbolica.expand((x+y)^3), x^3 + 3x^2*y + 3x*y^2 + y^3)
+end
+
+@testset "factor" begin
+    @test isequal(Symbolica.factor(x^2 + 2x + 1), (x + 1)^2)
+end
+
+@testset "simplify" begin
+    @test isequal(Symbolica.simplify((x^2 - 1) / (x - 1)), x + 1)
+end
+
+@testset "derivative" begin
+    @test isequal(Symbolica.derivative(x^3 + sin(x), x), 3x^2 + cos(x))
+end
+
+@testset "substitute" begin
+    @test isequal(Symbolica.substitute(x + y, Dict(x => y + 1)), (y + 1) + y)
+end
