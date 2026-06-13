@@ -50,7 +50,7 @@ Symbolica.substitute(x + y, Dict(x => y + 1))  # 1 + 2y
 ```
 Symbolics.jl Expr
     ↓ Encoder (Julia: Expr → string)
-RustCall (ccall)
+ccall (Libdl)
     ↓
 rust/ facade crate (extern "C" → deps/symbolica)
     ↓
@@ -58,7 +58,7 @@ Symbolica Atom (parse → operate → print)
     ↓
 rust/ facade crate (string → extern "C")
     ↓
-RustCall
+ccall (Libdl)
     ↓ Decoder (Julia: string → Expr)
 Symbolics.jl Expr
 ```
