@@ -2,7 +2,7 @@ module Symbolica
 
 using Symbolics
 using SymbolicUtils
-using Libdl
+using RustCall
 
 export expand, factor, simplify, derivative, substitute
 

@@ -8,3 +8,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 symbolica = { path = "../deps/symbolica" }
+# `#[julia]` proc-macro from RustCall.jl. `deps/build.jl` links the installed
+# RustCall package's copy to deps/juliacall_macros before building.
+juliacall_macros = { path = "../deps/juliacall_macros" }

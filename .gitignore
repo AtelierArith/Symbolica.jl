@@ -4,3 +4,7 @@ rust/Cargo.lock
 deps/build.log
 playground/
 Manifest.toml
+src/generated/
+extern/
+deps/juliacall_macros
+deps/rustcall_core

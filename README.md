@@ -44,13 +44,13 @@ Symbolica.substitute(x + y, Dict(x => y + 1)) # 1 + 2y
 Symbolics.jl Expr
     ↓ encode
 string
-    ↓ ccall (Libdl)
-rust/ facade crate (extern "C" → deps/symbolica)
+    ↓ RustCall.jl bindings (`#[julia] fn(String) -> String`)
+rust/ facade crate (→ deps/symbolica)
     ↓
 Symbolica Atom (parse → operate → print)
     ↓
-rust/ facade crate (string → extern "C")
-    ↓ ccall (Libdl)
+rust/ facade crate
+    ↓ RustCall.jl
 string
     ↓ decode
 Symbolics.jl Expr
