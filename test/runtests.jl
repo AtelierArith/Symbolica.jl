@@ -1,6 +1,7 @@
 using Test
 using Symbolics
 using Symbolica
+using RustCall
 
 @variables x y
 
@@ -23,4 +24,12 @@ end
 
 @testset "substitute" begin
     @test isequal(Symbolica.substitute(x + y, Dict(x => y + 1)), (y + 1) + y)
+end
+
+@testset "rust panic boundary" begin
+    # An unparsable expression makes the Rust facade `panic!` inside
+    # `parse_expr` (rust/src/lib.rs); RustCall's panic boundary must turn
+    # that into a catchable `RustCall.RustPanicError` rather than aborting
+    # the process (RustCall.jl main, post-#289).
+    @test_throws RustCall.RustPanicError Symbolica.SymbolicaBackend._call_expand("((( unparsable @@@")
 end
