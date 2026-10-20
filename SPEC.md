@@ -4,6 +4,7 @@
 
 Symbolica.jl は RustCall.jl を利用して Symbolica Rust crate を呼び出し、
 Symbolics.jl と相互運用可能な CAS バックエンドを提供する。
+Julia 1.13 以上と、登録済みの RustCall.jl 0.7.2 以上（0.7.x）を使用する。
 
 初期スコープは Symbolics.jl 互換 API のみとする。
 
@@ -36,9 +37,9 @@ Symbolics Expr
 ↓
 Encoder (Julia: Expr → 文字列)
 ↓
-RustCall.jl (`@rust_crate` → ccall)
+RustCall.jl (ビルド時に生成したバインディング → ccall)
 ↓
-rust/ facade crate (`#[julia]` → deps/symbolica)
+rust/ facade crate (`#[julia]` → コミット固定の Symbolica crate)
 ↓
 Symbolica Atom (parse → 操作 → print)
 ↓
@@ -92,9 +93,10 @@ value(x)  →  unwrap_const(unwrap(x))  # Num → BasicSymbolic
   - 整数・有理数・浮動小数点数・変数名
 - 文字列 → Julia: `parse_expr_to_symbolic(ex, mod)` または `@syms` + 手動構築
 
-## deps/symbolica
+## Symbolica Rust crate
 
-Symbolica の Rust 実装。`deps/symbolica` に本家 Symbolica crate (v2.0.0) を配置する。
+Symbolica の Rust 実装。Cargo の git 依存として本家 Symbolica crate (v2.2.0) を取得する。
+ソースはコミット `77c137481904b8a5531ede86e3ef36b82beed7fd` に固定する。
 Cargo workspace で `lib/numerica`（数論・代数構造）と `lib/graphica`（グラフ正準化）の2つのサブクレートを含む。
 
 主要モジュール:
@@ -110,7 +112,7 @@ Cargo workspace で `lib/numerica`（数論・代数構造）と `lib/graphica`�
 - `transcendental` -- 超越関数の数値評価
 - `domains` -- 代数構造 (環・体・ユークリッド整域, 代数的数, 有限体)
 
-本プロジェクトでは `deps/symbolica` を直接参照せず、薄い facade crate を別途作成し、
+本プロジェクトでは Julia から本家 crate を直接参照せず、薄い facade crate を別途作成し、
 RustCall.jl 経由で必要な関数のみを公開する。
 
 ## ディレクトリ構成
@@ -124,17 +126,17 @@ Symbolica.jl/
 │  ├─ rust_backend.jl
 │  ├─ convert_to_symbolica.jl
 │  ├─ convert_from_symbolica.jl
-│  └─ parser.jl
-├─ deps/
-│  └─ symbolica/          # 本家 Symbolica Rust crate (v2.0.0)
-│       ├─ Cargo.toml
-│       ├─ src/
+│  └─ generated/          # ビルド時に生成。git 管理対象外
+│       ├─ SymbolicaNative.jl
 │       └─ lib/
-│            ├─ numerica/
-│            └─ graphica/
+├─ deps/
+│  ├─ build.jl
+│  ├─ rustcall_julia_macros/       # インストール済み RustCall へのリンク
+│  ├─ rustcall_julia_macros_impl/  # 同上
+│  └─ rustcall_julia_core/         # 同上
 ├─ rust/
-│  ├─ Cargo.toml           # facade crate → deps/symbolica に依存
-│  └─ src/lib.rs           # extern "C" 公開関数
+│  ├─ Cargo.toml           # facade crate → コミット固定の Symbolica に依存
+│  └─ src/lib.rs           # #[julia] 公開関数
 └─ test/
 ```
 
@@ -172,12 +174,13 @@ Symbolica.jl/
 
 ## Rust側
 
-`rust/` に facade crate を作成する。この crate は `deps/symbolica` を依存関係として持ち、
-RustCall.jl から `@rust_crate` でロードできるよう `#[julia]` attribute で関数を公開する。
+`rust/` に facade crate を作成する。この crate はコミット固定の Symbolica を依存関係として持ち、
+RustCall.jl から呼び出せるよう `#[julia]` attribute で関数を公開する。
 MVP では文字列ベースのインターフェース（Symbolica の `parse!` / `AtomPrinter` を活用）とする。
 
 ```rust
 // rust/src/lib.rs
+use rustcall_julia_macros::julia;
 use symbolica::atom::AtomCore;
 
 #[julia]
@@ -192,16 +195,19 @@ fn symbolica_derivative(input: String, var: String) -> String { ... }
 fn symbolica_substitute(input: String, var: String, replacement: String) -> String { ... }
 ```
 
-Julia 側では `@rust_crate` でロードする:
+`deps/build.jl` で `RustCall.write_bindings_to_file` を実行し、形式 0.7 のバインディングを生成する。
+Julia 側では生成済みモジュールを読み込み、プリコンパイルを可能にする:
 
 ```julia
-const SymbolicaCore = @rust_crate joinpath(@__DIR__, "..", "rust")
-expand(input::String) = SymbolicaCore.symbolica_expand(input)
+include("generated/SymbolicaNative.jl")
+_call_expand(input::AbstractString) = SymbolicaNative.symbolica_expand(input)
 ```
 
-`#[julia]` attribute は `juliacall_macros` proc-macro crate によって提供され、
-コンパイル時に `#[no_mangle] pub extern "C"` へ展開される。
-RustCall.jl が型変換（`String` ↔ `Cstring` 等）を自動処理する。
+`#[julia]` attribute は `rustcall_julia_macros` が再公開し、
+`rustcall_julia_macros_impl` → `rustcall_julia_core` が実装する。
+3 crate とも同じインストール済み RustCall.jl に含まれるものをリンクする。
+RustCall.jl が UTF-8 文字列のポインタ・長さによる引数転送、戻り値の解放、panic 境界を処理する。
+古い整数形式の生成済みバインディングは再利用せず、`Pkg.build("Symbolica")` で再生成する。
 
 ## v0.2
 

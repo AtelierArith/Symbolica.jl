@@ -5,7 +5,7 @@
 //! RustCall.jl issue #242): expressions cross the FFI boundary as text in
 //! Symbolica's syntax.
 
-use juliacall_macros::julia;
+use rustcall_julia_macros::julia;
 use symbolica::atom::Symbol;
 use symbolica::atom::{Atom, AtomCore, DefaultNamespace};
 use symbolica::id::Replacement;

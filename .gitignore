@@ -6,5 +6,6 @@ playground/
 Manifest.toml
 src/generated/
 extern/
-deps/juliacall_macros
-deps/rustcall_core
+deps/rustcall_julia_macros
+deps/rustcall_julia_macros_impl
+deps/rustcall_julia_core

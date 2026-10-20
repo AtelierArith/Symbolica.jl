@@ -7,7 +7,9 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-symbolica = { path = "../deps/symbolica" }
-# `#[julia]` proc-macro from RustCall.jl. `deps/build.jl` links the installed
-# RustCall package's copy to deps/juliacall_macros before building.
-juliacall_macros = { path = "../deps/juliacall_macros" }
+# Symbolica 2.2.0, the release used by this facade before the RustCall migration.
+# Pin the source rather than following upstream's default branch across API changes.
+symbolica = { git = "https://github.com/symbolica-dev/symbolica.git", rev = "77c137481904b8a5531ede86e3ef36b82beed7fd" }
+# Use the runtime and #[julia] attribute shipped by the installed RustCall.jl.
+# deps/build.jl links its three matching crates before generating the bindings.
+rustcall_julia_macros = { path = "../deps/rustcall_julia_macros" }

@@ -12,10 +12,6 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 [workspace]
 projects = ["test"]
 
-# RustCall.jl with `#[julia]` String support (issue #242); drop this once the
-# release with that support is registered.
-[sources]
-RustCall = {url = "https://github.com/AtelierArith/RustCall.jl", rev = "main"}
-
 [compat]
-julia = "1.10"
+RustCall = "0.7.2"
+julia = "1.13"
