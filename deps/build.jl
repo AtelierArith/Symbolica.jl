@@ -1,18 +1,44 @@
-# Clone Symbolica and build the facade crate
+# Build step of Symbolica.jl
+#
+# 1. link the runtime, proc-macro implementation and core shipped by RustCall.jl
+#    so the facade's `#[julia]` uses the same ABI as its Julia loader
+# 2. build the facade crate (Cargo fetches its pinned Symbolica dependency)
+#    and generate precompilable Julia bindings from its
+#    FFI manifest (RustCall.write_bindings_to_file)
 
-const SYMBOLICA_DIR = joinpath(@__DIR__, "symbolica")
-const RUST_DIR = joinpath(@__DIR__, "..", "rust")
+using RustCall
 
-# Clone symbolica if not present
-if !isdir(SYMBOLICA_DIR)
-    @info "Cloning symbolica from GitHub..."
-    run(`git clone https://github.com/symbolica-dev/symbolica.git $(SYMBOLICA_DIR)`)
+const DEPS_DIR = @__DIR__
+const ROOT_DIR = dirname(DEPS_DIR)
+# These crates depend on one another by relative path. Link all three siblings
+# from the same installed RustCall, not independently versioned registry copies.
+const LINKED_CRATES = ("rustcall_julia_macros", "rustcall_julia_macros_impl", "rustcall_julia_core")
+const RUST_DIR = joinpath(ROOT_DIR, "rust")
+const BINDINGS_PATH = joinpath(ROOT_DIR, "src", "generated", "SymbolicaNative.jl")
+
+for crate in LINKED_CRATES
+    src = joinpath(pkgdir(RustCall), "deps", crate)
+    isdir(src) || error("$crate not found in the RustCall package at $src")
+    link = joinpath(DEPS_DIR, crate)
+    if !islink(link) && ispath(link)
+        error("Refusing to replace a non-symlink at $link; move it aside and rebuild.")
+    end
+    if !ispath(link) || realpath(link) != realpath(src)
+        rm(link; force = true)
+        symlink(src, link; dir_target = true)
+    end
+    @info "Using $crate from $src"
 end
 
-# Build the facade crate
-@info "Building Rust facade crate..."
-cd(RUST_DIR) do
-    run(`cargo build --release`)
-end
+mkpath(dirname(BINDINGS_PATH))
 
-@info "Build complete. Native library is at $(joinpath(RUST_DIR, "target", "release"))"
+@info "Building the Rust facade crate and generating Julia bindings..."
+RustCall.write_bindings_to_file(
+    RUST_DIR,
+    BINDINGS_PATH;
+    output_module_name = "SymbolicaNative",
+    build_release = true,
+    relative_lib_path = "lib",
+)
+
+@info "Build complete" bindings = BINDINGS_PATH

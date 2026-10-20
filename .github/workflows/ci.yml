@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Julia 1.13 / Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      # Keep the tested Rust toolchain independent of runner-image updates.
+      RUSTUP_TOOLCHAIN: '1.99.1'
+      # Native bindings must exist before Symbolica is precompiled.
+      JULIA_PKG_PRECOMPILE_AUTO: '0'
+      JULIA_NUM_PRECOMPILE_TASKS: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
+        with:
+          version: '1.13'
+
+      - name: Set up Rust and check native build prerequisites
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          rustc --version
+          cargo --version
+          cc --version
+          make --version
+          m4 --version
+
+      - name: Instantiate Julia dependencies
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(; allow_autoprecomp=false)'
+
+      - name: Build native libraries and generate bindings
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.build("Symbolica")'
+
+      - name: Strict precompilation
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.precompile(; strict=true)'
+
+      - name: Test including Rust panic recovery
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.test()'

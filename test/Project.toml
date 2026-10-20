@@ -1,4 +1,5 @@
 [deps]
+RustCall = "7ac5b1a4-9e37-4f0e-9aa3-3305a66bfb1c"
 Symbolica = "6a8c5df3-3954-43ad-83fd-5b9e0f263df7"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

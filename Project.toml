@@ -5,6 +5,7 @@ authors = ["Satoshi Terasaki <terasakisatoshi.math@gmail.com>"]
 
 [deps]
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+RustCall = "7ac5b1a4-9e37-4f0e-9aa3-3305a66bfb1c"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 
@@ -12,4 +13,5 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 projects = ["test"]
 
 [compat]
-julia = "1.10"
+RustCall = "0.7.2"
+julia = "1.13"
