@@ -16,7 +16,7 @@ Symbolica.jl is a Julia wrapper for the [Symbolica](https://symbolica.io) comput
 
 ## Installation
 
-Symbolica.jl requires Julia ≥ 1.13 and [Rust](https://rustup.rs) ≥ 1.89. It uses the registered RustCall.jl 0.7.2 release (compatible 0.7.x updates are allowed), not a development branch. The native library is compiled during `Pkg.build()`.
+Symbolica.jl requires Julia ≥ 1.13 and [Rust](https://rustup.rs) ≥ 1.89. It uses the registered RustCall.jl 0.9 release (compatible 0.9.x updates are allowed), not a development branch. The native library is compiled during `Pkg.build()`.
 
 ```julia
 using Pkg
@@ -27,7 +27,7 @@ Pkg.build("Symbolica")
 When updating an existing checkout, run `Pkg.free("RustCall")` first if its
 `Manifest.toml` still tracks RustCall by a git URL or local path, then run
 `Pkg.resolve()` and `Pkg.build("Symbolica")` again. The build regenerates the ignored bindings in
-`src/generated/` in RustCall's current 0.7 format; old integer-format bindings
+`src/generated/` in RustCall's 0.9 format; bindings generated for earlier minor versions
 are not compatible. Do not copy generated bindings or native libraries between builds.
 
 The native Symbolica dependency is pinned to the 2.2.0 source commit
@@ -49,23 +49,30 @@ Symbolica.derivative(x^3 + sin(x), x)        # cos(x) + 3x^2
 Symbolica.substitute(x + y, Dict(x => y + 1)) # 1 + 2y
 ```
 
+## Keeping expressions in Rust
+
+For a sequence of operations, keep the expression in Rust and convert only at
+its endpoints. Each mutating operation returns the same `NativeExpression`:
+
+```julia
+native = NativeExpression((x + y)^3)
+expand!(native)
+derivative!(native, x)
+result = convert(Num, native)
+```
+
+The RustCall-generated handle owns the Symbolica `Atom` and releases it through
+its finalizer. Invalid input returned by the Rust parser becomes an
+`ArgumentError`. Substitutions are sent to Rust in one call and applied
+sequentially, in dictionary iteration order. Invalid substitutions leave the
+native expression unchanged.
+
 ## Architecture
 
-```
-Symbolics.jl Expr
-    ↓ encode
-string
-    ↓ RustCall.jl bindings (`#[julia] fn(String) -> String`)
-rust/ facade crate (→ pinned Symbolica source via Cargo)
-    ↓
-Symbolica Atom (parse → operate → print)
-    ↓
-rust/ facade crate
-    ↓ RustCall.jl
-string
-    ↓ decode
-Symbolics.jl Expr
-```
+Symbolics expressions are encoded as strings at the boundary and parsed into
+Rust-owned Symbolica atoms. RustCall generates the owned handle, methods, and
+`Result` bindings. Results are printed and parsed back into Symbolics when
+requested. The `NativeExpression` API keeps the atom across multiple operations.
 
 ## License
 

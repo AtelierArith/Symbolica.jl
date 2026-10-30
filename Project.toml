@@ -13,5 +13,5 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 projects = ["test"]
 
 [compat]
-RustCall = "0.7.2"
+RustCall = "0.9"
 julia = "1.13"

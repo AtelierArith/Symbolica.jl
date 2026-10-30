@@ -9,7 +9,9 @@ crate-type = ["cdylib"]
 [dependencies]
 # Symbolica 2.2.0, the release used by this facade before the RustCall migration.
 # Pin the source rather than following upstream's default branch across API changes.
-symbolica = { git = "https://github.com/symbolica-dev/symbolica.git", rev = "77c137481904b8a5531ede86e3ef36b82beed7fd" }
+# Disable the default mimalloc allocator: its static TLS can prevent dlopen
+# after Julia has loaded other libraries on glibc systems.
+symbolica = { git = "https://github.com/symbolica-dev/symbolica.git", rev = "77c137481904b8a5531ede86e3ef36b82beed7fd", default-features = false, features = ["gmp", "tracing_max_level_info"] }
 # Use the runtime and #[julia] attribute shipped by the installed RustCall.jl.
 # deps/build.jl links its three matching crates before generating the bindings.
 rustcall_julia_macros = { path = "../deps/rustcall_julia_macros" }

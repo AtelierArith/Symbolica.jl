@@ -6,8 +6,8 @@ using RustCall
 @variables x y
 
 @testset "released RustCall bindings" begin
-    @test v"0.7.2" <= pkgversion(RustCall) < v"0.8"
-    @test Symbolica.SymbolicaBackend.SymbolicaNative._BINDINGS_FORMAT == "0.7"
+    @test v"0.9" <= pkgversion(RustCall) < v"0.10"
+    @test Symbolica.SymbolicaBackend.SymbolicaNative._BINDINGS_FORMAT == "0.9"
 end
 
 @testset "expand" begin
@@ -29,13 +29,28 @@ end
 
 @testset "substitute" begin
     @test isequal(Symbolica.substitute(x + y, Dict(x => y + 1)), (y + 1) + y)
+    native = NativeExpression(x + y)
+    backend = Symbolica.SymbolicaBackend
+    frame(s) = string(ncodeunits(s), ':', s)
+    batch = frame("x") * frame("y") * frame("y") * frame("2")
+    backend._ok(backend.SymbolicaNative.substitute_batch(native.handle, batch))
+    @test isequal(convert(Num, native), Num(4))
+    for invalid in ("1:x", "1:x1:y2:é1:(", "999:x", "1:é")
+        @test_throws ArgumentError backend._ok(backend.SymbolicaNative.substitute_batch(native.handle, invalid))
+        @test isequal(convert(Num, native), Num(4))
+    end
+    @test substitute!(native, Dict()) === native
+    @test isequal(convert(Num, native), Num(4))
 end
 
-@testset "rust panic boundary" begin
-    # An unparsable expression makes the Rust facade `panic!` inside
-    # `parse_expr` (rust/src/lib.rs); RustCall's panic boundary must turn
-    # that into a catchable `RustCall.RustPanicError` rather than aborting
-    # the process. A successful call afterward verifies the panic channel clears.
-    @test_throws RustCall.RustPanicError Symbolica.SymbolicaBackend._call_expand("((( unparsable @@@")
+@testset "owned expressions and errors" begin
+    native = NativeExpression((x + y)^2)
+    @test expand!(native) === native
+    derivative!(native, x)
+    @test isequal(convert(Num, native), 2x + 2y)
+    substitute!(native, Dict(x => y + 1))
+    expand!(native)
+    @test isequal(convert(Num, native), 2 + 4y)
+    @test_throws ArgumentError Symbolica.SymbolicaBackend.expression("((( unparsable @@@")
     @test isequal(Symbolica.expand((x + y)^2), x^2 + 2x*y + y^2)
 end

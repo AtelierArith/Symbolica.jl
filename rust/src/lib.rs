@@ -1,18 +1,11 @@
-//! Facade crate between Symbolica.jl and the Symbolica CAS.
-//!
-//! Every entry point is a `#[julia]` function taking and returning `String`
-//! (RustCall.jl generates the `extern "C"` wrapper and the Julia binding, see
-//! RustCall.jl issue #242): expressions cross the FFI boundary as text in
-//! Symbolica's syntax.
-
+//! Symbolica operations exposed through RustCall's owned handles and Results.
 use rustcall_julia_macros::julia;
-use symbolica::atom::Symbol;
-use symbolica::atom::{Atom, AtomCore, DefaultNamespace};
+use symbolica::atom::{Atom, AtomCore, DefaultNamespace, Symbol};
 use symbolica::id::Replacement;
 use symbolica::parser::ParseSettings;
 use symbolica::printer::{ColorMode, PrintOptions};
 
-fn parse_expr(input: &str) -> Atom {
+fn parse_expr(input: &str) -> Result<Atom, String> {
     Atom::parse_with_default_namespace(
         DefaultNamespace {
             data: input,
@@ -22,54 +15,89 @@ fn parse_expr(input: &str) -> Atom {
         },
         ParseSettings::symbolica(),
     )
-    .unwrap_or_else(|e| panic!("Symbolica parse error: {}", e))
+    .map_err(|e| format!("Symbolica parse error: {e}"))
 }
-
-fn parse_symbol(input: &str) -> Symbol {
+fn parse_symbol(input: &str) -> Result<Symbol, String> {
     Symbol::parse_with_default_namespace(DefaultNamespace {
         data: input,
         namespace: "julia".into(),
         file: "".into(),
         line: 0,
     })
-    .unwrap_or_else(|e| panic!("Symbolica symbol parse error: {}", e))
+    .map_err(|e| format!("Symbolica symbol parse error: {e}"))
 }
 
-fn atom_to_string(atom: &Atom) -> String {
-    atom.printer(PrintOptions::default().color_mode(ColorMode::Never))
-        .to_string()
+fn field<'a>(rest: &mut &'a str) -> Result<&'a str, String> {
+    let colon = rest.find(':').ok_or("missing field length")?;
+    let digits = &rest[..colon];
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err("invalid field length".into());
+    }
+    let len: usize = digits.parse().map_err(|_| "field length overflow")?;
+    let data = &rest[colon + 1..];
+    let value = data
+        .get(..len)
+        .ok_or("truncated field or invalid UTF-8 boundary")?;
+    *rest = &data[len..];
+    Ok(value)
 }
 
-/// Expand products and powers.
+/// An owned Symbolica expression. Its internal Atom never crosses the FFI boundary.
 #[julia]
-pub fn symbolica_expand(input: String) -> String {
-    atom_to_string(&parse_expr(&input).expand())
+pub struct Expression {
+    atom: Atom,
 }
 
-/// Factor over the rationals.
 #[julia]
-pub fn symbolica_factor(input: String) -> String {
-    atom_to_string(&parse_expr(&input).factor())
-}
-
-/// Cancel common factors of a rational expression.
-#[julia]
-pub fn symbolica_simplify(input: String) -> String {
-    atom_to_string(&parse_expr(&input).cancel())
-}
-
-/// Derivative of `input` with respect to the variable `var`.
-#[julia]
-pub fn symbolica_derivative(input: String, var: String) -> String {
-    let expr = parse_expr(&input);
-    atom_to_string(&expr.derivative(parse_symbol(&var)))
-}
-
-/// Replace every occurrence of `var` in `input` by `replacement`.
-#[julia]
-pub fn symbolica_substitute(input: String, var: String, replacement: String) -> String {
-    let expr = parse_expr(&input);
-    let var_atom = parse_expr(&var);
-    let repl_atom = parse_expr(&replacement);
-    atom_to_string(&expr.replace_multiple([Replacement::new(var_atom, repl_atom)]))
+impl Expression {
+    #[julia]
+    pub fn new() -> Self {
+        Self {
+            atom: parse_expr("0").expect("zero is valid"),
+        }
+    }
+    #[julia]
+    pub fn set(&mut self, input: String) -> Result<bool, String> {
+        self.atom = parse_expr(&input)?;
+        Ok(true)
+    }
+    #[julia]
+    pub fn render(&self) -> String {
+        self.atom
+            .printer(PrintOptions::default().color_mode(ColorMode::Never))
+            .to_string()
+    }
+    #[julia]
+    pub fn expand(&mut self) {
+        self.atom = self.atom.expand();
+    }
+    #[julia]
+    pub fn factor(&mut self) {
+        self.atom = self.atom.factor();
+    }
+    #[julia]
+    pub fn simplify(&mut self) {
+        self.atom = self.atom.cancel();
+    }
+    #[julia]
+    pub fn derivative(&mut self, var: String) -> Result<bool, String> {
+        self.atom = self.atom.derivative(parse_symbol(&var)?);
+        Ok(true)
+    }
+    #[julia]
+    pub fn substitute_batch(&mut self, encoded: String) -> Result<bool, String> {
+        let mut rest = encoded.as_str();
+        let mut pairs = Vec::new();
+        while !rest.is_empty() {
+            let var = parse_expr(field(&mut rest)?)?;
+            let replacement = parse_expr(field(&mut rest)?)?;
+            pairs.push((var, replacement));
+        }
+        let mut candidate = self.atom.clone();
+        for (var, replacement) in pairs {
+            candidate = candidate.replace_multiple([Replacement::new(var, replacement)]);
+        }
+        self.atom = candidate;
+        Ok(true)
+    }
 }
