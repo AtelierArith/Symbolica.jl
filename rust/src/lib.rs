@@ -62,6 +62,10 @@ impl Expression {
         Ok(true)
     }
     #[julia]
+    pub fn set_integer(&mut self, value: i64) {
+        self.atom = Atom::num(value);
+    }
+    #[julia]
     pub fn render(&self) -> String {
         self.atom
             .printer(PrintOptions::default().color_mode(ColorMode::Never))
@@ -82,6 +86,19 @@ impl Expression {
     #[julia]
     pub fn derivative(&mut self, var: String) -> Result<bool, String> {
         self.atom = self.atom.derivative(parse_symbol(&var)?);
+        Ok(true)
+    }
+    #[julia]
+    pub fn series(&mut self, var: String, point: String, depth: i64) -> Result<bool, String> {
+        let var = parse_symbol(&var)?;
+        let point = parse_expr(&point)?;
+        let depth = i32::try_from(depth).map_err(|_| "series depth is out of range")?;
+        let candidate = self
+            .atom
+            .series(var, &point, depth)
+            .map_err(|e| format!("Symbolica series error: {e}"))?
+            .to_atom();
+        self.atom = candidate;
         Ok(true)
     }
     #[julia]
