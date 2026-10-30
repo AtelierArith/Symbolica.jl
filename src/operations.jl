@@ -8,7 +8,15 @@ return to Symbolics. The owned Rust value is released by its finalizer.
 struct NativeExpression
     handle::SymbolicaBackend.SymbolicaNative.Expression
 end
-NativeExpression(expr::Num) = NativeExpression(SymbolicaBackend.expression(to_symstr(expr)))
+function NativeExpression(expr::Num)
+    value = SymbolicUtils.unwrap(expr)
+    if value isa Integer && typemin(Int64) <= value <= typemax(Int64)
+        handle = SymbolicaBackend.SymbolicaNative.Expression()
+        SymbolicaBackend.SymbolicaNative.set_integer(handle, Int64(value))
+        return NativeExpression(handle)
+    end
+    return NativeExpression(SymbolicaBackend.expression(to_symstr(expr)))
+end
 Base.convert(::Type{Num}, expr::NativeExpression) = from_symstr(SymbolicaBackend.SymbolicaNative.render(expr.handle))
 
 for (op, description) in ((:expand, "Expand products and powers"),
@@ -36,6 +44,16 @@ end
 function derivative(expr::Num, var::Num)
     native = NativeExpression(expr)
     derivative!(native, var)
+    return convert(Num, native)
+end
+"Expand through the given absolute degree around `point`, omitting the remainder term."
+function series!(expr::NativeExpression, var::Num, point::Number, depth::Integer)
+    SymbolicaBackend._ok(SymbolicaBackend.SymbolicaNative.series(expr.handle, to_symstr(var), _format_literal(point), Int64(depth)))
+    return expr
+end
+function series(expr::Num, var::Num, point::Number, depth::Integer)
+    native = NativeExpression(expr)
+    series!(native, var, point, depth)
     return convert(Num, native)
 end
 function substitute!(expr::NativeExpression, dict::Dict)

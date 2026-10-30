@@ -13,6 +13,7 @@ Symbolica.jl is a Julia wrapper for the [Symbolica](https://symbolica.io) comput
 | `simplify`     | Cancel common factors in rational expressions |
 | `derivative`   | Symbolic differentiation                 |
 | `substitute`   | Variable substitution                    |
+| `series`       | Truncated series around a numeric point  |
 
 ## Installation
 
@@ -47,6 +48,7 @@ Symbolica.factor(x^2 + 2x + 1)               # (1 + x)^2
 Symbolica.simplify((x^2 - 1) / (x - 1))      # 1 + x
 Symbolica.derivative(x^3 + sin(x), x)        # cos(x) + 3x^2
 Symbolica.substitute(x + y, Dict(x => y + 1)) # 1 + 2y
+Symbolica.series(1 / (1 - x), x, 0, 3)       # 1 + x + x^2 + x^3
 ```
 
 ## Keeping expressions in Rust
@@ -67,12 +69,24 @@ its finalizer. Invalid input returned by the Rust parser becomes an
 sequentially, in dictionary iteration order. Invalid substitutions leave the
 native expression unchanged.
 
+`series(expr, variable, point, depth)` returns terms through the absolute
+power `depth` without a remainder term. `series!` updates a native expression;
+an unsupported expansion reports an `ArgumentError` and leaves it unchanged.
+`simplify` performs rational cancellation and is not a general simplifier.
+
+Unlicensed Symbolica runs in restricted non-commercial mode, with one instance
+and one core per machine, and prints a license banner. Concurrent unlicensed
+processes can be terminated by Symbolica; see its license documentation below.
+Run `julia --project benchmark/operations.jl` for local timing comparisons,
+including conversion overhead and a sequence using a native handle.
+
 ## Architecture
 
 Symbolics expressions are encoded as strings at the boundary and parsed into
 Rust-owned Symbolica atoms. RustCall generates the owned handle, methods, and
 `Result` bindings. Results are printed and parsed back into Symbolics when
-requested. The `NativeExpression` API keeps the atom across multiple operations.
+requested. The `NativeExpression` API keeps the atom across multiple operations;
+64-bit integer constants are transferred directly without string parsing.
 
 ## License
 

@@ -6,6 +6,7 @@ using RustCall
 
 export expand, factor, simplify, derivative, substitute
 export NativeExpression, expand!, factor!, simplify!, derivative!, substitute!
+export series, series!
 
 include("rust_backend.jl")
 include("convert_to_symbolica.jl")

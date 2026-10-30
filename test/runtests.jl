@@ -27,6 +27,16 @@ end
     @test isequal(Symbolica.derivative(x^3 + sin(x), x), 3x^2 + cos(x))
 end
 
+@testset "series" begin
+    @test isequal(Symbolica.series(1 / (1 - x), x, 0, 3), 1 + x + x^2 + x^3)
+    native = NativeExpression(1 / (1 - x))
+    @test series!(native, x, 0, 2) === native
+    @test isequal(convert(Num, native), 1 + x + x^2)
+    @test_throws ArgumentError Symbolica.SymbolicaBackend._ok(Symbolica.SymbolicaBackend.SymbolicaNative.series(native.handle, "invalid symbol!", "0", 2))
+    @test_throws ArgumentError series!(native, x, 0, Int64(typemax(Int32)) + 1)
+    @test isequal(convert(Num, native), 1 + x + x^2)
+end
+
 @testset "substitute" begin
     @test isequal(Symbolica.substitute(x + y, Dict(x => y + 1)), (y + 1) + y)
     native = NativeExpression(x + y)
@@ -44,6 +54,7 @@ end
 end
 
 @testset "owned expressions and errors" begin
+    @test isequal(convert(Num, NativeExpression(Num(42))), Num(42))
     native = NativeExpression((x + y)^2)
     @test expand!(native) === native
     derivative!(native, x)
