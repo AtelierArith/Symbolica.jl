@@ -1,61 +1,57 @@
 """
-    expand(expr::Num) -> Num
+    NativeExpression(expr::Num)
 
-Expand a symbolic expression using Symbolica.
+Keep an expression in Rust across operations. Use `expand!`, `factor!`,
+`simplify!`, `derivative!`, and `substitute!`, then `convert(Num, expr)` to
+return to Symbolics. The owned Rust value is released by its finalizer.
 """
-function expand(expr::Num)
-    s = to_symstr(expr)
-    result_s = SymbolicaBackend._call_expand(s)
-    return from_symstr(result_s)
+struct NativeExpression
+    handle::SymbolicaBackend.SymbolicaNative.Expression
 end
+NativeExpression(expr::Num) = NativeExpression(SymbolicaBackend.expression(to_symstr(expr)))
+Base.convert(::Type{Num}, expr::NativeExpression) = from_symstr(SymbolicaBackend.SymbolicaNative.render(expr.handle))
 
-"""
-    factor(expr::Num) -> Num
-
-Factor a symbolic expression over the rationals using Symbolica.
-"""
-function factor(expr::Num)
-    s = to_symstr(expr)
-    result_s = SymbolicaBackend._call_factor(s)
-    return from_symstr(result_s)
-end
-
-"""
-    simplify(expr::Num) -> Num
-
-Simplify a symbolic expression using Symbolica.
-"""
-function simplify(expr::Num)
-    s = to_symstr(expr)
-    result_s = SymbolicaBackend._call_simplify(s)
-    return from_symstr(result_s)
-end
-
-"""
-    derivative(expr::Num, var::Num) -> Num
-
-Compute the derivative of a symbolic expression with respect to a variable
-using Symbolica.
-"""
-function derivative(expr::Num, var::Num)
-    s = to_symstr(expr)
-    var_s = to_symstr(var)
-    result_s = SymbolicaBackend._call_derivative(s, var_s)
-    return from_symstr(result_s)
-end
-
-"""
-    substitute(expr::Num, dict::Dict) -> Num
-
-Substitute variables in a symbolic expression according to the given
-dictionary mapping.
-"""
-function substitute(expr::Num, dict::Dict)
-    s = to_symstr(expr)
-    for (k, v) in dict
-        k_s = to_symstr(k)
-        v_s = to_symstr(v)
-        s = SymbolicaBackend._call_substitute(s, k_s, v_s)
+for (op, description) in ((:expand, "Expand products and powers"),
+                          (:factor, "Factor over the rationals"),
+                          (:simplify, "Cancel common factors"))
+    bang = Symbol(op, :!)
+    @eval begin
+        function $bang(expr::NativeExpression)
+            SymbolicaBackend.SymbolicaNative.$op(expr.handle)
+            return expr
+        end
+        @doc $description function $op(expr::Num)
+            native = NativeExpression(expr)
+            $bang(native)
+            return convert(Num, native)
+        end
     end
-    return from_symstr(s)
+end
+
+function derivative!(expr::NativeExpression, var::Num)
+    SymbolicaBackend._ok(SymbolicaBackend.SymbolicaNative.derivative(expr.handle, to_symstr(var)))
+    return expr
+end
+"Compute the derivative of a symbolic expression with respect to a variable."
+function derivative(expr::Num, var::Num)
+    native = NativeExpression(expr)
+    derivative!(native, var)
+    return convert(Num, native)
+end
+function substitute!(expr::NativeExpression, dict::Dict)
+    io = IOBuffer()
+    for (key, value) in dict
+        for item in (key, value)
+            str = to_symstr(item)
+            print(io, ncodeunits(str), ':', str)
+        end
+    end
+    SymbolicaBackend._ok(SymbolicaBackend.SymbolicaNative.substitute_batch(expr.handle, String(take!(io))))
+    return expr
+end
+"Apply substitutions sequentially in dictionary iteration order."
+function substitute(expr::Num, dict::Dict)
+    native = NativeExpression(expr)
+    substitute!(native, dict)
+    return convert(Num, native)
 end

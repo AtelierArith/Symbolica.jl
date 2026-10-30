@@ -4,7 +4,7 @@
 
 Symbolica.jl は RustCall.jl を利用して Symbolica Rust crate を呼び出し、
 Symbolics.jl と相互運用可能な CAS バックエンドを提供する。
-Julia 1.13 以上と、登録済みの RustCall.jl 0.7.2 以上（0.7.x）を使用する。
+Julia 1.13 以上と、登録済みの RustCall.jl 0.9 以上（0.9.x）を使用する。
 
 初期スコープは Symbolics.jl 互換 API のみとする。
 
@@ -43,7 +43,7 @@ rust/ facade crate (`#[julia]` → コミット固定の Symbolica crate)
 ↓
 Symbolica Atom (parse → 操作 → print)
 ↓
-rust/ facade crate (String → `#[julia]` で返却)
+rust/ facade crate (Rust 所有の `Expression` ハンドル)
 ↓
 RustCall.jl
 ↓
@@ -176,32 +176,13 @@ Symbolica.jl/
 
 `rust/` に facade crate を作成する。この crate はコミット固定の Symbolica を依存関係として持ち、
 RustCall.jl から呼び出せるよう `#[julia]` attribute で関数を公開する。
-MVP では文字列ベースのインターフェース（Symbolica の `parse!` / `AtomPrinter` を活用）とする。
+式の入出力には文字列を使い、操作の間は `#[julia]` 構造体 `Expression` に
+Symbolica の `Atom` を保持する。`NativeExpression` はそのハンドルをラップし、
+複数の破壊的操作の後に `convert(Num, expr)` で Symbolics に戻せる。
+パースエラーは `Result` から Julia の `ArgumentError` に変換する。
 
-```rust
-// rust/src/lib.rs
-use rustcall_julia_macros::julia;
-use symbolica::atom::AtomCore;
-
-#[julia]
-fn symbolica_expand(input: String) -> String { ... }
-#[julia]
-fn symbolica_factor(input: String) -> String { ... }
-#[julia]
-fn symbolica_simplify(input: String) -> String { ... }
-#[julia]
-fn symbolica_derivative(input: String, var: String) -> String { ... }
-#[julia]
-fn symbolica_substitute(input: String, var: String, replacement: String) -> String { ... }
-```
-
-`deps/build.jl` で `RustCall.write_bindings_to_file` を実行し、形式 0.7 のバインディングを生成する。
-Julia 側では生成済みモジュールを読み込み、プリコンパイルを可能にする:
-
-```julia
-include("generated/SymbolicaNative.jl")
-_call_expand(input::AbstractString) = SymbolicaNative.symbolica_expand(input)
-```
+`deps/build.jl` の `RustCall.write_bindings_to_file` は 0.9 形式の
+プリコンパイル可能なバインディングを生成する。
 
 `#[julia]` attribute は `rustcall_julia_macros` が再公開し、
 `rustcall_julia_macros_impl` → `rustcall_julia_core` が実装する。
@@ -212,7 +193,6 @@ RustCall.jl が UTF-8 文字列のポインタ・長さによる引数転送、�
 ## v0.2
 
 - JSON AST
-- Rust handle
 
 ## v0.3
 
