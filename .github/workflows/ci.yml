@@ -52,3 +52,8 @@ jobs:
 
       - name: Test including Rust panic recovery
         run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.test()'
+
+      - name: Build tutorial
+        run: |
+          julia --startup-file=no --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate(; allow_autoprecomp=false)'
+          julia --startup-file=no --project=docs docs/make.jl

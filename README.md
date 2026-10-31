@@ -37,6 +37,16 @@ so an upstream default-branch change cannot silently alter the facade's API.
 
 ## Quick Start
 
+A step-by-step Japanese tutorial is available in [docs/src/index.md](docs/src/index.md).
+To build the Documenter.jl HTML locally, run:
+
+```sh
+julia --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate(); Pkg.build("Symbolica")'
+julia --project=docs docs/make.jl
+```
+
+Open `docs/build/index.html` in a browser.
+
 ```julia
 using Symbolics
 using Symbolica
