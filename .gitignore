@@ -9,3 +9,4 @@ extern/
 deps/rustcall_julia_macros
 deps/rustcall_julia_macros_impl
 deps/rustcall_julia_core
+docs/build/
