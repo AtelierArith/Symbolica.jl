@@ -3,20 +3,31 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['*']
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
   test:
-    name: Julia 1.13 / Linux
-    runs-on: ubuntu-24.04
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    permissions:
+      actions: write # Allow julia-actions/cache to remove old caches.
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['1.13']
+        os: [ubuntu-24.04]
+        arch: [x64]
     env:
       # Keep the tested Rust toolchain independent of runner-image updates.
       RUSTUP_TOOLCHAIN: '1.99.1'
@@ -30,7 +41,10 @@ jobs:
 
       - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
         with:
-          version: '1.13'
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
 
       - name: Set up Rust and check native build prerequisites
         run: |
@@ -54,6 +68,39 @@ jobs:
         run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.test()'
 
       - name: Build tutorial
+        run: |
+          julia --startup-file=no --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate(; allow_autoprecomp=false)'
+          julia --startup-file=no --project=docs docs/make.jl
+
+  docs:
+    name: Deploy documentation
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: write
+    env:
+      RUSTUP_TOOLCHAIN: '1.99.1'
+      JULIA_PKG_PRECOMPILE_AUTO: '0'
+      JULIA_NUM_PRECOMPILE_TASKS: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
+        with:
+          version: '1.13'
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
+      - name: Set up Rust
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+      - name: Build native libraries and generate bindings
+        run: |
+          julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(; allow_autoprecomp=false); Pkg.build("Symbolica")'
+      - name: Build and deploy documentation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           julia --startup-file=no --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate(; allow_autoprecomp=false)'
           julia --startup-file=no --project=docs docs/make.jl
